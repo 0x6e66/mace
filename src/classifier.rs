@@ -1,6 +1,6 @@
 use std::io::Read;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::ValueEnum;
 
 use crate::cli::{Cli, Commands, DirectArgs, ZipArgs};
@@ -17,15 +17,23 @@ pub fn handle_sample(cli: &Cli) -> Result<()> {
     //   none => classify via yara rules
     // 3. use extractor
 
-    // 1. read data from file
-    let file_data = match &cli.command {
-        Commands::Direct(args) => get_file_data_direct(args)?,
-        Commands::Zip(args) => get_file_data_zip(args)?,
+    let (file_data, args) = match &cli.command {
+        Commands::Direct(args) => (get_file_data_direct(args)?, &args.global_args),
+        Commands::Zip(args) => (get_file_data_zip(args)?, &args.global_args),
+    };
+
+    let family = match &args.force_family {
+        Some(family) => family,
+        None => &classify_sample(&file_data)?,
     };
 
     dbg!(file_data.len());
 
     Ok(())
+}
+
+fn classify_sample(data: &[u8]) -> Result<MalwareFamiliy> {
+    Err(anyhow!("TODO"))
 }
 
 fn get_file_data_direct(args: &DirectArgs) -> Result<Vec<u8>> {
