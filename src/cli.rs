@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{Parser, ValueEnum};
+use clap::{Args, Parser, Subcommand};
 
 use crate::classifier::MalwareFamiliy;
 
@@ -14,17 +14,32 @@ The extraction focused only on information regarding the C2 (Command & Control) 
 This includes hardcoded domains and IPs and parameters of used DGAs (Domain Generation Algorithm)."
 )]
 pub struct Cli {
-    #[arg(
-        value_parser = validate_file,
-        help = "Path to the sample",
-        long_help = "Set the path to the sample you want to analyze. The sample you want to analyze can be in a (encrypted) zip file.
-For details on this see the option 'mode'."
-    )]
-    pub file: PathBuf,
+    #[command(subcommand)]
+    pub command: Commands,
+}
 
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    #[command(
+        about = "Pass the sample directly",
+        long_about = "With this command the sample has to be passed directly"
+    )]
+    Direct(DirectArgs),
+
+    #[command(
+        about = "Pass the sample in a (encrypted) zipfile",
+        long_about = "With this command the sample is passed in a (possibly encrypted) zip file. This could be useful if the sample
+might get quarantined by an anti-virus."
+    )]
+    Zip(ZipArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct GlobalArgs {
     #[arg(
         short,
         long,
+        global = true,
         value_enum,
         value_name = "FAMILY",
         help = "Force the use of a specific extractor",
@@ -34,39 +49,40 @@ in advance, you can force the extraction for a certain malware family (skipping 
     pub force_family: Option<MalwareFamiliy>,
 
     #[arg(
-        short,
-        long,
-        value_enum,
-        default_value = "direct",
-        help = "Select the mode the file should be treated as",
-        long_help = "The mode tells the program how to treat the file.
-direct:
-    The file is the sample itself (eg. a PE file, ELF file, APK, etc.).
-    Note that the files have to be unpacked, because no dynamic analysis is performed.
-zipfile:
-    The file is a zip file and contains only one file. That one file is the sample.
-encrypted-zipfile:
-    The file is a password-protected zip file and contains only one file. That one file is the sample.
-    The password has to be supplied via the 'password' option."
+        value_parser = validate_file,
+        help = "Path to the sample",
+        long_help = "Set the path to the sample you want to analyze"
     )]
-    pub mode: Mode,
+    pub file: PathBuf,
+}
+
+#[derive(Args, Debug)]
+pub struct DirectArgs {
+    #[command(flatten)]
+    pub global_args: GlobalArgs,
+}
+
+#[derive(Args, Debug)]
+pub struct ZipArgs {
+    #[command(flatten)]
+    pub global_args: GlobalArgs,
 
     #[arg(
         short,
         long,
-        value_enum,
         help = "The password for encrypted zip files",
-        long_help = "When the sample is in a password-protected zip file, the password can be set with this option",
-        required_if_eq("mode", "encrypted-zipfile")
+        long_help = "When a password is specified, the program tries to decrypt the sample inside the zip file"
     )]
     pub password: Option<String>,
-}
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
-pub enum Mode {
-    Direct,
-    Zipfile,
-    EncryptedZipfile,
+    #[arg(
+        short,
+        long,
+        help = "Select the name of the sample inside the zip file (when multiple files are present inside the zip file)",
+        long_help = "When multiple files are present inside the zip file, a specific one can be selected for analysis.
+If multiple files are present and the option is not set, the first one will be selected"
+    )]
+    pub sample_name: Option<String>,
 }
 
 fn validate_file(s: &str) -> Result<PathBuf, String> {
