@@ -34,6 +34,15 @@ might get quarantined by an anti-virus."
     Zip(ZipArgs),
 }
 
+impl Commands {
+    pub fn get_global_args(&self) -> &GlobalArgs {
+        match self {
+            Self::Direct(DirectArgs { global_args }) => global_args,
+            Self::Zip(ZipArgs { global_args, .. }) => global_args,
+        }
+    }
+}
+
 #[derive(Args, Debug)]
 pub struct GlobalArgs {
     #[arg(
