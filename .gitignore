@@ -1,2 +1,7 @@
 /target
+/samples
+/.venv
+
 Cargo.lock
+.env
+
