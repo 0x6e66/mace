@@ -7,7 +7,7 @@ pub fn extract_for_families(
     families: &[MalwareFamiliy],
 ) -> Vec<MalwareConfiguration> {
     families
-        .into_iter()
+        .iter()
         .filter_map(|family| extract_internal(sample_data, family))
         .collect()
 }

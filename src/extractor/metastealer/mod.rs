@@ -40,10 +40,10 @@ fn get_seed(sample_data: &[u8]) -> Option<u64> {
         for pat in r.patterns() {
             for mat in pat.matches() {
                 let decoder = Decoder::new(bitness, mat.data(), DecoderOptions::NONE);
-                for instruction in decoder
+                if let Some(instruction) = decoder
                     .into_iter()
                     .filter(|i| matches!(i.mnemonic(), Mnemonic::Push))
-                    .filter(|i| ![0x6ef, 0].contains(&i.immediate32()))
+                    .find(|i| ![0x6ef, 0].contains(&i.immediate32()))
                 {
                     return Some(instruction.immediate64());
                 }
