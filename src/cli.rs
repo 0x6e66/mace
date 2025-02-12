@@ -63,6 +63,14 @@ in advance, you can force the extraction for a certain malware family (skipping 
         long_help = "Set the path to the sample you want to analyze"
     )]
     pub file: PathBuf,
+
+    #[arg(
+        short,
+        long,
+        default_value = "output.json",
+        help = "Set file output should be written to"
+    )]
+    pub output: PathBuf,
 }
 
 #[derive(Args, Debug)]

@@ -1,7 +1,10 @@
 pub mod classifier;
 pub mod cli;
+pub mod configuration;
 pub mod extractor;
 pub mod utils;
+
+use std::{fs::File, io::Write};
 
 use anyhow::Result;
 use clap::Parser;
@@ -22,7 +25,11 @@ fn main() -> Result<()> {
         None => classify_sample(&sample_data)?,
     };
 
-    extract_for_families(&sample_data, &families);
+    let res = extract_for_families(&sample_data, &families);
+    let s = serde_json::to_string_pretty(&res)?;
+
+    let mut file = File::create(&global_args.output)?;
+    write!(&mut file, "{}", s)?;
 
     Ok(())
 }
