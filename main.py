@@ -1,7 +1,11 @@
 import sys
 import os
 import requests
+import platform
 from dotenv import load_dotenv
+
+if platform() != "Linux":
+    print("Sorry, the script is only usable on Linux, because I'm lazy")
 
 load_dotenv()
 
