@@ -64,13 +64,8 @@ in advance, you can force the extraction for a certain malware family (skipping 
     )]
     pub file: PathBuf,
 
-    #[arg(
-        short,
-        long,
-        default_value = "output.json",
-        help = "Set file output should be written to"
-    )]
-    pub output: PathBuf,
+    #[arg(short, long, help = "Set file output should be written to")]
+    pub output: Option<PathBuf>,
 }
 
 #[derive(Args, Debug)]

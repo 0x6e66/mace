@@ -26,10 +26,14 @@ fn main() -> Result<()> {
     };
 
     let res = extract_for_families(&sample_data, &families);
-    let s = serde_json::to_string_pretty(&res)?;
+    let s = serde_json::to_string(&res)?;
 
-    let mut file = File::create(&global_args.output)?;
-    write!(&mut file, "{}", s)?;
+    if let Some(output_path) = &global_args.output {
+        let mut file = File::create(output_path)?;
+        write!(&mut file, "{}", s)?;
+    } else {
+        println!("{s}");
+    }
 
     Ok(())
 }
