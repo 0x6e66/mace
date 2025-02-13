@@ -2,7 +2,7 @@ use std::{collections::HashMap, io::Read};
 
 use anyhow::Result;
 use exe::{ImageSectionHeader, PEType, VecPE, PE};
-use iced_x86::{Code, Decoder, DecoderOptions};
+use iced_x86::{Code, Decoder, DecoderOptions, Instruction};
 
 use crate::cli::{Cli, Commands, DirectArgs, ZipArgs};
 
@@ -83,17 +83,16 @@ pub fn generate_function_overview(sample_data: &[u8]) -> Result<HashMap<u32, u32
     {
         let func_addr = instruction.memory_displacement32();
 
-        if func_addr as usize >= raw_data_size {
+        if func_addr as usize >= raw_data_size + virt_addr_start {
             continue;
         }
 
-        if map.get(&func_addr).is_none() {
-            let size = get_size_of_function(
+        map.entry(func_addr).or_insert_with(|| {
+            get_size_of_function(
                 &pe,
                 &text_section_data[func_addr as usize - virt_addr_start..],
-            );
-            map.insert(func_addr, size);
-        }
+            )
+        });
     }
     Ok(map)
 }
@@ -101,9 +100,23 @@ pub fn generate_function_overview(sample_data: &[u8]) -> Result<HashMap<u32, u32
 /// Gets the size of a function by iterating over the function and looking for a `ret` instruction
 pub fn get_size_of_function(pe: &VecPE, start_of_function_data: &[u8]) -> u32 {
     let bitness = get_bitness_from_pe(pe);
-    let decoder = Decoder::new(bitness, start_of_function_data, DecoderOptions::NONE);
+    let mut decoder = Decoder::new(bitness, start_of_function_data, DecoderOptions::NONE);
 
     let mut size = 0;
+    if decoder.can_decode() {
+        let mut instruction = Instruction::default();
+        decoder.decode_out(&mut instruction);
+
+        size += instruction.len() as u32;
+
+        if matches!(instruction.code(), Code::Jmp_rm16)
+            || matches!(instruction.code(), Code::Jmp_rm32)
+            || matches!(instruction.code(), Code::Jmp_rm64)
+        {
+            return size;
+        }
+    }
+
     for instruction in decoder {
         size += instruction.len() as u32;
         if matches!(instruction.code(), Code::Retnw)
