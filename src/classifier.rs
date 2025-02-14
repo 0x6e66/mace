@@ -4,6 +4,7 @@ use clap::ValueEnum;
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 pub enum MalwareFamiliy {
     Metastealer,
+    DMSniff,
 }
 
 pub fn classify_sample(_sample_data: &[u8]) -> Result<Vec<MalwareFamiliy>> {

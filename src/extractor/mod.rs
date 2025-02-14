@@ -1,3 +1,4 @@
+mod dmsniff;
 mod metastealer;
 
 use crate::{classifier::MalwareFamiliy, configuration::MalwareConfiguration};
@@ -15,5 +16,6 @@ pub fn extract_for_families(
 fn extract_internal(sample_data: &[u8], family: &MalwareFamiliy) -> Option<MalwareConfiguration> {
     match family {
         MalwareFamiliy::Metastealer => metastealer::extract(sample_data).ok(),
+        MalwareFamiliy::DMSniff => dmsniff::extract(sample_data).ok(),
     }
 }
