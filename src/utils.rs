@@ -41,11 +41,29 @@ fn get_file_data_zip(args: &ZipArgs) -> Result<Vec<u8>> {
     Ok(buff)
 }
 
-pub fn ghidra_addr_to_slice_index(section_header: &ImageSectionHeader, addr: usize) -> usize {
-    let raw_addr_start = section_header.pointer_to_raw_data.0 as usize;
-    let virt_addr_start = section_header.virtual_address.0 as usize;
+pub fn get_section_data_by_name<'a>(pe: &'a VecPE, name: &str) -> Result<&'a [u8]> {
+    let section_header = pe.get_section_by_name(name)?;
 
-    raw_addr_start + addr - virt_addr_start
+    let start = section_header.pointer_to_raw_data.0 as usize;
+    let size = section_header.size_of_raw_data as usize;
+    let end = start + size;
+
+    Ok(&pe.get_buffer()[start..end])
+}
+
+/// Converts a virtual address to a raw address
+pub fn virtual_to_raw_address(section_header: &ImageSectionHeader, addr: u32) -> u32 {
+    let raw_addr_start = section_header.pointer_to_raw_data.0;
+    let virt_addr_start = section_header.virtual_address.0;
+
+    addr - virt_addr_start + raw_addr_start
+}
+
+pub fn raw_to_virtual_address(section_header: &ImageSectionHeader, addr: u32) -> u32 {
+    let raw_addr_start = section_header.pointer_to_raw_data.0;
+    let virt_addr_start = section_header.virtual_address.0;
+
+    addr - virt_addr_start + raw_addr_start
 }
 
 pub fn get_bitness_from_pe(pe: &VecPE) -> u32 {
