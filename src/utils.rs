@@ -1,7 +1,7 @@
-use std::{collections::HashMap, io::Read};
+use std::io::Read;
 
 use anyhow::Result;
-use exe::{ImageSectionHeader, PEType, VecPE, PE};
+use exe::{ImageSectionHeader, VecPE, PE};
 use iced_x86::{Code, Decoder, DecoderOptions, Instruction};
 
 use crate::cli::{Cli, Commands, DirectArgs, ZipArgs};
@@ -109,14 +109,14 @@ pub fn get_bitness_from_pe(pe: &VecPE) -> u32 {
 ///         89 c8           MOV        EAX,ECX
 ///         c3              RET
 /// ```
-pub fn generate_function_overview<'a>(pe: &'a VecPE) -> Result<Vec<(u32, &'a [u8])>> {
+pub fn generate_function_overview(pe: &VecPE) -> Result<Vec<(u32, &[u8])>> {
     let text_section_header = pe.get_section_by_name(".text")?;
-    let bitness = get_bitness_from_pe(&pe);
+    let bitness = get_bitness_from_pe(pe);
 
     let virt_addr_start = text_section_header.virtual_address.0 as usize;
     let raw_data_size = text_section_header.size_of_raw_data as usize;
 
-    let text_section_data = get_section_data_by_header(&pe, text_section_header);
+    let text_section_data = get_section_data_by_header(pe, text_section_header);
     let initial_ip = text_section_header.virtual_address.0 as u64;
 
     let decoder = Decoder::with_ip(bitness, text_section_data, initial_ip, DecoderOptions::NONE);
@@ -135,7 +135,7 @@ pub fn generate_function_overview<'a>(pe: &'a VecPE) -> Result<Vec<(u32, &'a [u8
 
         if !functions.iter().any(|(f, _)| *f == func_addr) {
             let func_start = func_addr as usize - virt_addr_start;
-            let size = get_size_of_function(&pe, &text_section_data[func_start..]);
+            let size = get_size_of_function(pe, &text_section_data[func_start..]);
             functions.push((func_addr, &text_section_data[func_start..func_start + size]));
         }
     }
