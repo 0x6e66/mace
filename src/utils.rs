@@ -51,7 +51,18 @@ pub fn get_section_data_by_name<'a>(pe: &'a VecPE, name: &str) -> Result<&'a [u8
     Ok(&pe.get_buffer()[start..end])
 }
 
-/// Converts a virtual address to a raw address
+pub fn get_section_data_by_header<'a>(
+    pe: &'a VecPE,
+    section_header: &ImageSectionHeader,
+) -> &'a [u8] {
+    let start = section_header.pointer_to_raw_data.0 as usize;
+    let size = section_header.size_of_raw_data as usize;
+    let end = start + size;
+
+    &pe.get_buffer()[start..end]
+}
+
+/// Converts a virtual address inside the selected section to a raw address
 pub fn virtual_to_raw_address(section_header: &ImageSectionHeader, addr: u32) -> u32 {
     let raw_addr_start = section_header.pointer_to_raw_data.0;
     let virt_addr_start = section_header.virtual_address.0;
@@ -59,6 +70,7 @@ pub fn virtual_to_raw_address(section_header: &ImageSectionHeader, addr: u32) ->
     addr - virt_addr_start + raw_addr_start
 }
 
+/// Converts a raw address to a virtual address inside the selected section
 pub fn raw_to_virtual_address(section_header: &ImageSectionHeader, addr: u32) -> u32 {
     let raw_addr_start = section_header.pointer_to_raw_data.0;
     let virt_addr_start = section_header.virtual_address.0;
@@ -66,6 +78,7 @@ pub fn raw_to_virtual_address(section_header: &ImageSectionHeader, addr: u32) ->
     addr - virt_addr_start + raw_addr_start
 }
 
+/// Determines if the PE is 32 or 64-bit architecture
 pub fn get_bitness_from_pe(pe: &VecPE) -> u32 {
     match pe.get_arch() {
         Ok(exe::Arch::X86) => 32,
@@ -96,23 +109,19 @@ pub fn get_bitness_from_pe(pe: &VecPE) -> u32 {
 ///         89 c8           MOV        EAX,ECX
 ///         c3              RET
 /// ```
-
-pub fn generate_function_overview(sample_data: &[u8]) -> Result<Vec<(u32, u32)>> {
-    let pe = VecPE::from_data(PEType::Disk, sample_data);
+pub fn generate_function_overview<'a>(pe: &'a VecPE) -> Result<Vec<(u32, &'a [u8])>> {
     let text_section_header = pe.get_section_by_name(".text")?;
     let bitness = get_bitness_from_pe(&pe);
 
     let virt_addr_start = text_section_header.virtual_address.0 as usize;
-    let raw_addr_start = text_section_header.pointer_to_raw_data.0 as usize;
     let raw_data_size = text_section_header.size_of_raw_data as usize;
-    let raw_addr_end = raw_addr_start + raw_data_size;
 
-    let text_section_data = &sample_data[raw_addr_start..raw_addr_end];
+    let text_section_data = get_section_data_by_header(&pe, text_section_header);
     let initial_ip = text_section_header.virtual_address.0 as u64;
 
     let decoder = Decoder::with_ip(bitness, text_section_data, initial_ip, DecoderOptions::NONE);
 
-    let mut functions: Vec<(u32, u32)> = Vec::new();
+    let mut functions: Vec<(u32, &[u8])> = Vec::new();
 
     for instruction in decoder
         .into_iter()
@@ -125,18 +134,16 @@ pub fn generate_function_overview(sample_data: &[u8]) -> Result<Vec<(u32, u32)>>
         }
 
         if !functions.iter().any(|(f, _)| *f == func_addr) {
-            let size = get_size_of_function(
-                &pe,
-                &text_section_data[func_addr as usize - virt_addr_start..],
-            );
-            functions.push((func_addr, size));
+            let func_start = func_addr as usize - virt_addr_start;
+            let size = get_size_of_function(&pe, &text_section_data[func_start..]);
+            functions.push((func_addr, &text_section_data[func_start..func_start + size]));
         }
     }
     Ok(functions)
 }
 
 /// Gets the size of a function by iterating over the function and looking for a `ret` instruction
-pub fn get_size_of_function(pe: &VecPE, start_of_function_data: &[u8]) -> u32 {
+pub fn get_size_of_function(pe: &VecPE, start_of_function_data: &[u8]) -> usize {
     let bitness = get_bitness_from_pe(pe);
     let mut decoder = Decoder::new(bitness, start_of_function_data, DecoderOptions::NONE);
 
@@ -145,7 +152,7 @@ pub fn get_size_of_function(pe: &VecPE, start_of_function_data: &[u8]) -> u32 {
         let mut instruction = Instruction::default();
         decoder.decode_out(&mut instruction);
 
-        size += instruction.len() as u32;
+        size += instruction.len();
 
         if matches!(instruction.code(), Code::Jmp_rm16)
             || matches!(instruction.code(), Code::Jmp_rm32)
@@ -156,7 +163,7 @@ pub fn get_size_of_function(pe: &VecPE, start_of_function_data: &[u8]) -> u32 {
     }
 
     for instruction in decoder {
-        size += instruction.len() as u32;
+        size += instruction.len();
         if matches!(instruction.code(), Code::Retnw)
             || matches!(instruction.code(), Code::Retnd)
             || matches!(instruction.code(), Code::Retnq)
