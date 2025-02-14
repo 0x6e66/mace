@@ -58,9 +58,28 @@ pub fn get_bitness_from_pe(pe: &VecPE) -> u32 {
 
 /// Generates an overview of all the functions that are called in the text section
 ///
-/// Returns a HashMap where the keys are the **virtual** address of a function
-/// and the value is its size in bytes
-pub fn generate_function_overview(sample_data: &[u8]) -> Result<HashMap<u32, u32>> {
+/// Return a Vec of tuples. Each tuple is structured as follows:
+///     t.0 => **virtual** address of the function
+///     t.1 => size of the function in bytes (distance from the beginning to the next `ret`, where
+///     the `ret` in included in the length)
+///
+/// The following function would have the length 20:
+///
+/// ```asm
+///         8b 4c 24 04     MOV        ECX,dword ptr [ESP + param_1]
+///     LAB_0040279c
+///         b8 18 00        MOV        EAX,0x18
+///         00 00
+///         39 c8           CMP        EAX,ECX
+///         73 04           JNC        LAB_004027a9
+///         d1 e9           SHR        ECX,0x1
+///         eb f3           JMP        LAB_0040279c
+///     LAB_004027a9
+///         89 c8           MOV        EAX,ECX
+///         c3              RET
+/// ```
+
+pub fn generate_function_overview(sample_data: &[u8]) -> Result<Vec<(u32, u32)>> {
     let pe = VecPE::from_data(PEType::Disk, sample_data);
     let text_section_header = pe.get_section_by_name(".text")?;
     let bitness = get_bitness_from_pe(&pe);
@@ -75,7 +94,7 @@ pub fn generate_function_overview(sample_data: &[u8]) -> Result<HashMap<u32, u32
 
     let decoder = Decoder::with_ip(bitness, text_section_data, initial_ip, DecoderOptions::NONE);
 
-    let mut map: HashMap<u32, u32> = HashMap::new();
+    let mut functions: Vec<(u32, u32)> = Vec::new();
 
     for instruction in decoder
         .into_iter()
@@ -87,14 +106,15 @@ pub fn generate_function_overview(sample_data: &[u8]) -> Result<HashMap<u32, u32
             continue;
         }
 
-        map.entry(func_addr).or_insert_with(|| {
-            get_size_of_function(
+        if !functions.iter().any(|(f, _)| *f == func_addr) {
+            let size = get_size_of_function(
                 &pe,
                 &text_section_data[func_addr as usize - virt_addr_start..],
-            )
-        });
+            );
+            functions.push((func_addr, size));
+        }
     }
-    Ok(map)
+    Ok(functions)
 }
 
 /// Gets the size of a function by iterating over the function and looking for a `ret` instruction
