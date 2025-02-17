@@ -15,8 +15,15 @@ use rules::RULE_PRIMES;
 pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
     let pe = VecPE::from_data(PEType::Disk, sample_data);
 
-    let (_, dga_func_data) = identify_dga_func(&pe)?;
-    let primes = extract_primes_from_dga_function(&pe, dga_func_data).unwrap();
+    let dga_func_candidates = identify_dga_func_candidates(&pe)?;
+
+    let mut primes = vec![];
+    for (_, dga_func_data) in dga_func_candidates {
+        if let Ok(tmp_primes) = extract_primes_from_dga_function(&pe, dga_func_data) {
+            primes = tmp_primes;
+            break;
+        }
+    }
 
     let mut config = MalwareConfiguration::from((sample_data, "DMSniff"));
 
@@ -29,18 +36,14 @@ pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
     Ok(config)
 }
 
-fn identify_dga_func(pe: &VecPE) -> Result<(u32, &[u8])> {
-    let function_overview = generate_function_overview(pe)?;
+fn identify_dga_func_candidates(pe: &VecPE) -> Result<Vec<(u32, &[u8])>> {
+    let mut function_overview = generate_function_overview(pe)?;
 
-    // TODO: change to proper detection mechanism
-    let res = *function_overview
-        .into_iter()
-        .filter(|(f, _)| *f == 0x2168 || *f == 0x335a)
-        .collect::<Vec<(u32, &[u8])>>()
-        .first()
-        .ok_or(anyhow::anyhow!("Could not locale DGA function"))?;
+    // average size of the dga function is 447 bytes
+    function_overview
+        .sort_by(|(_, d1), (_, d2)| d1.len().abs_diff(447).cmp(&d2.len().abs_diff(447)));
 
-    Ok(res)
+    Ok(function_overview)
 }
 
 fn extract_primes_from_dga_function(pe: &VecPE, function_data: &[u8]) -> Result<Vec<u32>> {
@@ -76,6 +79,9 @@ fn extract_primes_from_dga_function(pe: &VecPE, function_data: &[u8]) -> Result<
     tmp.sort_by(|(_, s1), (_, s2)| s1.cmp(s2));
 
     let mut res = tmp.into_iter().map(|(p, _)| p).collect::<Vec<u32>>();
+    if res.len() <= 4 {
+        return Err(anyhow::anyhow!("Too few primes found"));
+    }
     res.truncate(res.len() - 4);
 
     Ok(res)
