@@ -87,41 +87,26 @@ pub fn get_bitness_from_pe(pe: &VecPE) -> u32 {
     }
 }
 
+#[derive(Debug)]
+pub struct Function {
+    pub address: u32,
+    pub data: Vec<u8>,
+    pub function_calls: Vec<u32>,
+}
+
 /// Generates an overview of all the functions that are called in the text section
-///
-/// Return a Vec of tuples. Each tuple is structured as follows:
-///     t.0 => **virtual** address of the function
-///     t.1 => size of the function in bytes (distance from the beginning to the next `ret`, where
-///     the `ret` in included in the length)
-///
-/// The following function would have the length 20:
-///
-/// ```asm
-///         8b 4c 24 04     MOV        ECX,dword ptr [ESP + param_1]
-///     LAB_0040279c
-///         b8 18 00        MOV        EAX,0x18
-///         00 00
-///         39 c8           CMP        EAX,ECX
-///         73 04           JNC        LAB_004027a9
-///         d1 e9           SHR        ECX,0x1
-///         eb f3           JMP        LAB_0040279c
-///     LAB_004027a9
-///         89 c8           MOV        EAX,ECX
-///         c3              RET
-/// ```
-pub fn generate_function_overview(pe: &VecPE) -> Result<Vec<(u32, &[u8])>> {
+pub fn generate_function_overview(pe: &VecPE) -> Result<Vec<Function>> {
     let text_section_header = pe.get_section_by_name(".text")?;
+    let text_section_data = get_section_data_by_header(pe, text_section_header);
     let bitness = get_bitness_from_pe(pe);
 
     let virt_addr_start = text_section_header.virtual_address.0 as usize;
     let raw_data_size = text_section_header.size_of_raw_data as usize;
 
-    let text_section_data = get_section_data_by_header(pe, text_section_header);
-    let initial_ip = text_section_header.virtual_address.0 as u64;
-
+    let initial_ip = virt_addr_start as u64;
     let decoder = Decoder::with_ip(bitness, text_section_data, initial_ip, DecoderOptions::NONE);
 
-    let mut functions: Vec<(u32, &[u8])> = Vec::new();
+    let mut functions: Vec<Function> = Vec::new();
 
     for instruction in decoder
         .into_iter()
@@ -133,44 +118,72 @@ pub fn generate_function_overview(pe: &VecPE) -> Result<Vec<(u32, &[u8])>> {
             continue;
         }
 
-        if !functions.iter().any(|(f, _)| *f == func_addr) {
+        if !functions
+            .iter()
+            .any(|Function { address, .. }| *address == func_addr)
+        {
             let func_start = func_addr as usize - virt_addr_start;
-            let size = get_size_of_function(pe, &text_section_data[func_start..]);
-            functions.push((func_addr, &text_section_data[func_start..func_start + size]));
+            let (size, function_calls) = get_size_and_function_calls_of_function(
+                text_section_header,
+                bitness,
+                func_addr,
+                &text_section_data[func_start..],
+            );
+            functions.push(Function {
+                address: func_addr,
+                data: text_section_data[func_start..func_start + size].to_vec(),
+                function_calls,
+            });
         }
     }
+
     Ok(functions)
 }
 
-/// Gets the size of a function by iterating over the function and looking for a `ret` instruction
-pub fn get_size_of_function(pe: &VecPE, start_of_function_data: &[u8]) -> usize {
-    let bitness = get_bitness_from_pe(pe);
-    let mut decoder = Decoder::new(bitness, start_of_function_data, DecoderOptions::NONE);
+/// Gets the size and function calls of a function by iterating over the function and looking for a `ret` instruction
+pub fn get_size_and_function_calls_of_function(
+    text_section_header: &ImageSectionHeader,
+    bitness: u32,
+    ip_of_function: u32,
+    start_of_function_data: &[u8],
+) -> (usize, Vec<u32>) {
+    let virt_addr_start = text_section_header.virtual_address.0 as usize;
+    let raw_data_size = text_section_header.size_of_raw_data as usize;
+    let mut decoder = Decoder::with_ip(
+        bitness,
+        start_of_function_data,
+        ip_of_function.into(),
+        DecoderOptions::NONE,
+    );
 
     let mut size = 0;
-    if decoder.can_decode() {
-        let mut instruction = Instruction::default();
-        decoder.decode_out(&mut instruction);
+    let mut function_calls = vec![];
 
+    if decoder.can_decode() {
+        let instruction = decoder.decode();
         size += instruction.len();
 
-        if matches!(instruction.code(), Code::Jmp_rm16)
-            || matches!(instruction.code(), Code::Jmp_rm32)
-            || matches!(instruction.code(), Code::Jmp_rm64)
-        {
-            return size;
+        match instruction.code() {
+            Code::Jmp_rm16 | Code::Jmp_rm32 | Code::Jmp_rm64 => return (size, function_calls),
+            _ => (),
         }
     }
 
     for instruction in decoder {
         size += instruction.len();
-        if matches!(instruction.code(), Code::Retnw)
-            || matches!(instruction.code(), Code::Retnd)
-            || matches!(instruction.code(), Code::Retnq)
-        {
-            break;
+        match instruction.code() {
+            Code::Retnw | Code::Retnd | Code::Retnq => break,
+            Code::Call_rel32_32 => {
+                let func_addr = instruction.memory_displacement32();
+                if (func_addr as usize) < raw_data_size + virt_addr_start
+                    && !function_calls.iter().any(|f| *f == func_addr)
+                {
+                    function_calls.push(func_addr);
+                }
+            }
+            _ => (),
         }
     }
 
-    size
+    (size, function_calls)
 }
