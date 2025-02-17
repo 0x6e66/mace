@@ -2,7 +2,7 @@ mod rules;
 
 use anyhow::Result;
 use exe::{PEType, VecPE};
-use iced_x86::{Decoder, DecoderOptions, Mnemonic};
+use iced_x86::{Code, Decoder, DecoderOptions, Mnemonic};
 use yara_x::{Compiler, Scanner};
 
 use crate::{
@@ -10,7 +10,7 @@ use crate::{
     utils::{generate_function_overview, get_bitness_from_pe},
 };
 
-use rules::RULE_PRIMES;
+use rules::{RULE_PREFIX, RULE_PRIMES};
 
 pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
     let pe = VecPE::from_data(PEType::Disk, sample_data);
@@ -18,9 +18,11 @@ pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
     let dga_func_candidates = identify_dga_func_candidates(&pe)?;
 
     let mut primes = vec![];
+    let mut prefix = String::new();
     for (_, dga_func_data) in dga_func_candidates {
         if let Ok(tmp_primes) = extract_primes_from_dga_function(&pe, dga_func_data) {
             primes = tmp_primes;
+            prefix = extract_prefix_from_dga_function(&pe, dga_func_data).unwrap();
             break;
         }
     }
@@ -32,6 +34,11 @@ pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
         .dga_parameters
         .number_sequences
         .insert("primes".to_string(), primes);
+    config
+        .data
+        .dga_parameters
+        .strings
+        .insert("prefix".to_string(), prefix);
 
     Ok(config)
 }
@@ -44,6 +51,35 @@ fn identify_dga_func_candidates(pe: &VecPE) -> Result<Vec<(u32, &[u8])>> {
         .sort_by(|(_, d1), (_, d2)| d1.len().abs_diff(447).cmp(&d2.len().abs_diff(447)));
 
     Ok(function_overview)
+}
+
+fn extract_prefix_from_dga_function(pe: &VecPE, function_data: &[u8]) -> Result<String> {
+    let mut res = String::new();
+
+    let mut compiler = Compiler::new();
+    compiler.add_source(RULE_PREFIX)?;
+
+    let rules = compiler.build();
+    let mut scanner = Scanner::new(&rules);
+    let results = scanner.scan(function_data)?;
+
+    let bitness = get_bitness_from_pe(pe);
+
+    for rule in results.matching_rules() {
+        for pattern in rule.patterns() {
+            for mat in pattern.matches() {
+                let decoder = Decoder::new(bitness, mat.data(), DecoderOptions::NONE);
+                for instruction in decoder {
+                    if !matches!(instruction.code(), Code::Mov_rm8_imm8) {
+                        break;
+                    }
+                    res.push(instruction.immediate8().into());
+                }
+            }
+        }
+    }
+
+    Ok(res)
 }
 
 fn extract_primes_from_dga_function(pe: &VecPE, function_data: &[u8]) -> Result<Vec<u32>> {

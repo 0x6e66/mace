@@ -24,3 +24,15 @@ rule primes {
     condition:
         $sequence_eax or $sequence_edi
 }"#;
+
+pub static RULE_PREFIX: &str = r#"
+rule prefix {
+    meta:
+        author = "Frondorf, Niklas"
+
+    strings:
+        $prefix = /(\xc6\x05[\x00-\xff]{4}[^\x00]|\xc6\x05[\x00-\xff]{4}[^\x00]\xc6\x05[\x00-\xff]{4}[^\x00])/
+
+    condition:
+        all of them
+}"#;
