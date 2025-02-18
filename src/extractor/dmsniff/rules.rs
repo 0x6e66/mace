@@ -36,3 +36,29 @@ rule prefix {
     condition:
         all of them
 }"#;
+
+pub static RULE_COUNTER: &str = r#"
+rule counter {
+    meta:
+        author = "Frondorf, Niklas"
+
+    strings:
+        $counter = {
+            (
+                b8 ?? ?? ?? ??      // mov      eax, counter_max
+                3b 85 ?? ?? ?? ??   // cmp      eax, dword ptr [ebp + counter]
+                0f 83 ?? ?? ?? ??   // jnc      lab
+            |
+                83 bd ?? ?? ?? ??   // cmp      dword ptr [ebp + counter], 0x32
+                ??
+                0f 86 ?? ?? ?? ??   // jbe
+            )
+            c7 85                   // mov      dword ptr [ebp + counter], 0x1
+            ?? ?? ?? ?? 
+            01 00 00 00
+            e9 ?? ?? ?? ??          // jmp      lab
+        }
+
+    condition:
+        all of them
+}"#;

@@ -7,22 +7,37 @@ use yara_x::{Compiler, Scanner};
 
 use crate::{
     configuration::MalwareConfiguration,
-    utils::{generate_function_overview, get_bitness_from_pe},
+    utils::{generate_function_overview, get_bitness_from_pe, Function},
 };
 
-use rules::{RULE_PREFIX, RULE_PRIMES};
+use rules::{RULE_COUNTER, RULE_PREFIX, RULE_PRIMES};
 
 pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
     let pe = VecPE::from_data(PEType::Disk, sample_data);
+    let mut function_overview = generate_function_overview(&pe)?;
 
-    let dga_func_candidates = identify_dga_func_candidates(&pe)?;
+    sort_for_dga_func_candidates(&mut function_overview);
 
     let mut primes = vec![];
     let mut prefix = String::new();
-    for (_, dga_func_data) in dga_func_candidates {
-        if let Ok(tmp_primes) = extract_primes_from_dga_function(&pe, dga_func_data) {
+    let mut counter = 0;
+
+    for dga_func in &function_overview {
+        if let Ok(tmp_primes) = extract_primes_from_dga_function(&pe, &dga_func.data) {
             primes = tmp_primes;
-            prefix = extract_prefix_from_dga_function(&pe, dga_func_data).unwrap();
+            prefix = extract_prefix_from_dga_function(&pe, &dga_func.data)?;
+
+            for f in function_overview
+                .iter()
+                .filter(|Function { function_calls, .. }| {
+                    function_calls.contains(&dga_func.address)
+                })
+            {
+                if let Ok(tmp_counter) = extract_counter_from_call_dga_func(&pe, &f.data) {
+                    counter = tmp_counter;
+                    break;
+                }
+            }
             break;
         }
     }
@@ -39,18 +54,50 @@ pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
         .dga_parameters
         .strings
         .insert("prefix".to_string(), prefix);
+    config
+        .data
+        .dga_parameters
+        .magic_numbers
+        .insert("counter".to_string(), counter.into());
 
     Ok(config)
 }
 
-fn identify_dga_func_candidates(pe: &VecPE) -> Result<Vec<(u32, &[u8])>> {
-    let mut function_overview = generate_function_overview(pe)?;
-
+fn sort_for_dga_func_candidates(function_overview: &mut [Function]) {
     // average size of the dga function is 447 bytes
-    function_overview
-        .sort_by(|(_, d1), (_, d2)| d1.len().abs_diff(447).cmp(&d2.len().abs_diff(447)));
+    function_overview.sort_by(|Function { data: d1, .. }, Function { data: d2, .. }| {
+        d1.len().abs_diff(447).cmp(&d2.len().abs_diff(447))
+    });
+}
 
-    Ok(function_overview)
+fn extract_counter_from_call_dga_func(pe: &VecPE, function_data: &[u8]) -> Result<u32> {
+    let bitness = get_bitness_from_pe(pe);
+
+    let mut compiler = Compiler::new();
+    compiler.add_source(RULE_COUNTER)?;
+
+    let rules = compiler.build();
+    let mut scanner = Scanner::new(&rules);
+    let results = scanner.scan(function_data)?;
+
+    for rule in results.matching_rules() {
+        for pattern in rule.patterns() {
+            if let Some(mat) = pattern.matches().next() {
+                let mut decoder = Decoder::new(bitness, mat.data(), DecoderOptions::NONE);
+                if !decoder.can_decode() {
+                    return Err(anyhow::anyhow!("Could not find counter"));
+                }
+                let instruction = decoder.decode();
+                match instruction.mnemonic() {
+                    Mnemonic::Mov => return Ok(instruction.immediate32()),
+                    Mnemonic::Cmp => return Ok(instruction.immediate32()),
+                    _ => unreachable!(),
+                }
+            }
+        }
+    }
+
+    Err(anyhow::anyhow!("Could not find counter"))
 }
 
 fn extract_prefix_from_dga_function(pe: &VecPE, function_data: &[u8]) -> Result<String> {
