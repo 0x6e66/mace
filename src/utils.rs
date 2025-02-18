@@ -2,7 +2,7 @@ use std::io::Read;
 
 use anyhow::Result;
 use exe::{ImageSectionHeader, VecPE, PE};
-use iced_x86::{Code, Decoder, DecoderOptions, Instruction};
+use iced_x86::{Code, Decoder, DecoderOptions};
 
 use crate::cli::{Cli, Commands, DirectArgs, ZipArgs};
 
