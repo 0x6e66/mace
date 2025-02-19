@@ -62,3 +62,47 @@ rule counter {
     condition:
         all of them
 }"#;
+
+pub static RULE_DECRYPT_STRING: &str = r#"
+rule counter {
+    meta:
+        author = "Frondorf, Niklas"
+
+    strings:
+        $tds = {
+            (
+                73 ??               // jnc      label
+            |
+                76 ??               // jbe      label
+            |
+                eb ??               // jmp      label
+            )
+            68 ?? ?? ?? ??          // push     encrypted_tld
+            e8 ?? ?? ?? ??          // call     decrypt_string
+        }
+
+    condition:
+        all of them
+}"#;
+
+pub static RULE_DECRYPT_STRING2: &str = r#"
+rule counter {
+    meta:
+        author = "Frondorf, Niklas"
+
+    strings:
+        $keys = {
+            (
+                83 e2 ??            // and      edx, key1
+            |
+                b9 ?? ?? ?? ??      // mov      ecx, key1
+                31 d2               // xor      edx, edx
+                f7 f1               // div      ecx
+            )
+            0f b6 ?? ??             // movzx
+            ?? ?? ?? ??
+        }
+
+    condition:
+        all of them
+}"#;

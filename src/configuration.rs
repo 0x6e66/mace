@@ -26,6 +26,7 @@ pub struct Data {
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct DGAParameters {
     pub number_sequences: HashMap<String, Vec<u32>>,
+    pub string_sequences: HashMap<String, Vec<String>>,
     pub strings: HashMap<String, String>,
     pub magic_numbers: HashMap<String, u64>,
 }

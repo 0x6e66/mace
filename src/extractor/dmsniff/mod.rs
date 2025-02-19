@@ -2,9 +2,11 @@ mod counter;
 mod prefix;
 mod primes;
 mod rules;
+mod tld;
 
 use anyhow::Result;
 use exe::{PEType, VecPE};
+use tld::extract_tlds_from_dga_func;
 
 use crate::{
     configuration::MalwareConfiguration,
@@ -30,11 +32,13 @@ pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
     let mut primes = vec![];
     let mut prefix = String::new();
     let mut counter = 0;
+    let mut tlds = vec![];
 
     for dga_func in &function_overview {
         if let Ok(tmp_primes) = extract_primes_from_dga_function(&pe, &dga_func.data) {
             primes = tmp_primes;
             prefix = extract_prefix_from_dga_function(&pe, &dga_func.data)?;
+            tlds = extract_tlds_from_dga_func(&pe, dga_func)?;
 
             for f in function_overview
                 .iter()
@@ -68,6 +72,11 @@ pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
         .dga_parameters
         .magic_numbers
         .insert("counter".to_string(), counter.into());
+    config
+        .data
+        .dga_parameters
+        .string_sequences
+        .insert("tlds".to_string(), tlds);
 
     Ok(config)
 }
