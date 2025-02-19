@@ -38,7 +38,7 @@ pub fn extract_primes_from_dga_function(pe: &VecPE, function_data: &[u8]) -> Res
     tmp.sort_by(|(_, s1), (_, s2)| s1.cmp(s2));
 
     let mut res = tmp.into_iter().map(|(p, _)| p).collect::<Vec<u32>>();
-    if res.len() <= 4 {
+    if res.len() <= 4 + 5 {
         return Err(anyhow::anyhow!("Too few primes found"));
     }
     res.truncate(res.len() - 4);
