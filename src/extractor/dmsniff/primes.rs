@@ -31,6 +31,12 @@ pub fn extract_primes_from_dga_function(pe: &VecPE, function_data: &[u8]) -> Res
                         tmp.push((1, r));
                     }
                 }
+                "$sequence_shift" => {
+                    for mat in pattern.matches() {
+                        let r = mat.range().start;
+                        tmp.push((2, r));
+                    }
+                }
                 _ => unreachable!(),
             }
         }

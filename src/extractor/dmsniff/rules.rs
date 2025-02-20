@@ -21,8 +21,19 @@ rule primes {
             e8 ?? ?? ?? ??          // call     halve_until_smaller_24
         }
 
+        $sequence_shift = {
+            (
+                d1 e6               // shl      esi, 0x1
+                56                  // push     esi
+                |
+                d1 e7               // shl      edi, 0x1
+                57                  // push     edi
+            )
+            e8 ?? ?? ?? ??          // call     halve_until_smaller_24
+        }
+
     condition:
-        $sequence_eax or $sequence_edi
+        any of them
 }"#;
 
 pub static RULE_PREFIX: &str = r#"
