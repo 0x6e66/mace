@@ -6,13 +6,12 @@ mod tld;
 
 use anyhow::Result;
 use exe::{PEType, VecPE};
-use tld::extract_tlds_from_dga_func;
 
 use crate::{
     configuration::MalwareConfiguration,
     extractor::dmsniff::{
         counter::extract_counter_from_call_dga_func, prefix::extract_prefix_from_dga_function,
-        primes::extract_primes_from_dga_function,
+        primes::extract_primes_from_dga_function, tld::extract_tlds_from_dga_func,
     },
     utils::{generate_function_overview, Function},
 };
@@ -42,9 +41,7 @@ pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
 
             for f in function_overview
                 .iter()
-                .filter(|Function { function_calls, .. }| {
-                    function_calls.contains(&dga_func.address)
-                })
+                .filter(|f| f.function_calls.contains(&dga_func.address))
             {
                 if let Ok(tmp_counter) = extract_counter_from_call_dga_func(&pe, &f.data) {
                     counter = tmp_counter;

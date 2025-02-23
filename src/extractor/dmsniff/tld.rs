@@ -3,11 +3,10 @@ use exe::{VecPE, PE};
 use iced_x86::{Decoder, DecoderOptions, Mnemonic};
 use yara_x::{Compiler, Scanner};
 
-use crate::utils::{
-    generate_function_overview, get_bitness_from_pe, virtual_to_raw_address, Function,
+use crate::{
+    extractor::dmsniff::rules::{RULE_KEYS, RULE_TLDS},
+    utils::{generate_function_overview, get_bitness_from_pe, virtual_to_raw_address, Function},
 };
-
-use super::rules::{RULE_DECRYPT_STRING, RULE_DECRYPT_STRING2};
 
 pub fn extract_tlds_from_dga_func(pe: &VecPE, dga_func: &Function) -> Result<Vec<String>> {
     let function_overview = generate_function_overview(pe)?;
@@ -16,7 +15,7 @@ pub fn extract_tlds_from_dga_func(pe: &VecPE, dga_func: &Function) -> Result<Vec
     let image_base = pe.get_image_base()? as u32;
 
     let mut compiler = Compiler::new();
-    compiler.add_source(RULE_DECRYPT_STRING)?;
+    compiler.add_source(RULE_TLDS)?;
 
     let rules = compiler.build();
     let mut scanner = Scanner::new(&rules);
@@ -82,7 +81,7 @@ fn get_keys_from_decrypt_string_function<'a>(
     let image_base = pe.get_image_base()? as u32;
 
     let mut compiler = Compiler::new();
-    compiler.add_source(RULE_DECRYPT_STRING2)?;
+    compiler.add_source(RULE_KEYS)?;
 
     let rules = compiler.build();
     let mut scanner = Scanner::new(&rules);

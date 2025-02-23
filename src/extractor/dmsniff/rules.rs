@@ -74,8 +74,8 @@ rule counter {
         all of them
 }"#;
 
-pub static RULE_DECRYPT_STRING: &str = r#"
-rule counter {
+pub static RULE_TLDS: &str = r#"
+rule tlds {
     meta:
         author = "Frondorf, Niklas"
 
@@ -96,8 +96,8 @@ rule counter {
         all of them
 }"#;
 
-pub static RULE_DECRYPT_STRING2: &str = r#"
-rule counter {
+pub static RULE_KEYS: &str = r#"
+rule keys {
     meta:
         author = "Frondorf, Niklas"
 
