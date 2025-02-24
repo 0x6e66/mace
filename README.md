@@ -12,7 +12,7 @@ This includes hardcoded domains and IPs and parameters of used Domain Generation
 ## Example usage
 Analyzing the DMSniff sample [f4be1b8d67e33c11789d151d288130254d346ecc0f4738a12ce3a34d86ec646d](https://www.virustotal.com/gui/file/f4be1b8d67e33c11789d151d288130254d346ecc0f4738a12ce3a34d86ec646d)
 ```bash
-cargo run -- direct -f dm-sniff sample.exe | jq
+$ cargo run -- direct -f dm-sniff sample.exe | jq
 [
   {
     "header": {
