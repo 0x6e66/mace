@@ -13,7 +13,7 @@ use crate::{
         counter::extract_counter_from_call_dga_func, prefix::extract_prefix_from_dga_function,
         primes::extract_primes_from_dga_function, tld::extract_tlds_from_dga_func,
     },
-    utils::{generate_function_overview, Function},
+    utils::generate_function_overview,
 };
 
 pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
