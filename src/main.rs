@@ -4,10 +4,16 @@ pub mod configuration;
 pub mod extractor;
 pub mod utils;
 
-use std::{fs::File, io::Write};
+use std::{
+    fs::File,
+    io::Write,
+    sync::{Arc, Mutex},
+};
 
 use anyhow::Result;
 use clap::Parser;
+use indicatif::ParallelProgressIterator;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use cli::Cli;
 use extractor::extract_for_family;
@@ -18,28 +24,43 @@ fn main() -> Result<()> {
 
     let global_args = cli.command.get_global_args();
 
-    let mut res = vec![];
+    let res = Arc::new(Mutex::new(Vec::new()));
+    let err = Arc::new(Mutex::new(Vec::new()));
 
-    for filename in tqdm::tqdm(&global_args.files) {
-        match get_sample_data(&cli, &filename) {
+    let _ = &global_args
+        .files
+        .par_iter()
+        .progress()
+        .for_each(|filename| match get_sample_data(&cli, filename) {
             Err(e) => {
-                eprintln!("Error opening file {filename:?}: '{e}'");
+                err.lock()
+                    .unwrap()
+                    .push(format!("Error opening file {filename:?}: '{e}'"));
             }
             Ok(data) => match extract_for_family(&data, &global_args.family) {
                 Ok(c) => match serde_json::to_string(&c) {
-                    Ok(s) => res.push(s),
-                    Err(e) => eprintln!("Failed to serialize malware configuration: '{e}'"),
+                    Ok(s) => res.lock().unwrap().push(s),
+                    Err(e) => err
+                        .lock()
+                        .unwrap()
+                        .push(format!("Failed to serialize malware configuration: '{e}'")),
                 },
-                Err(e) => eprintln!("Failed to extract configuration from {filename:?}: '{e}'"),
+                Err(e) => err.lock().unwrap().push(format!(
+                    "Failed to extract configuration from {filename:?}: '{e}'"
+                )),
             },
-        }
+        });
+
+    for e in err.lock().unwrap().iter() {
+        eprintln!("{e}");
     }
 
     if let Some(output_path) = &global_args.output {
         let mut file = File::create(output_path)?;
-        write!(&mut file, "{}", res.join("\n"))?;
+        write!(&mut file, "{}", res.lock().unwrap().join("\n"))?;
     } else {
-        println!("{}", res.join("\n"));
+        println!("{}", res.lock().unwrap().join("\n"));
     }
+
     Ok(())
 }
