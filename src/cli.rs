@@ -48,21 +48,18 @@ pub struct GlobalArgs {
     #[arg(
         short,
         long,
-        global = true,
         value_enum,
         value_name = "FAMILY",
-        help = "Force the use of a specific extractor",
-        long_help = "If the automatic detection of the malware family is not working properly for your sample or you know the family
-in advance, you can force the extraction for a certain malware family (skipping the automatic detection of the malware family)."
+        help = "Specify the malware family of the sample you are trying to analyze"
     )]
-    pub force_family: Option<MalwareFamiliy>,
+    pub family: MalwareFamiliy,
 
     #[arg(
         value_parser = validate_file,
         help = "Path to the sample",
         long_help = "Set the path to the sample you want to analyze"
     )]
-    pub file: PathBuf,
+    pub files: Vec<PathBuf>,
 
     #[arg(short, long, help = "Set file output should be written to")]
     pub output: Option<PathBuf>,
@@ -86,15 +83,6 @@ pub struct ZipArgs {
         long_help = "When a password is specified, the program tries to decrypt the sample inside the zip file"
     )]
     pub password: Option<String>,
-
-    #[arg(
-        short,
-        long,
-        help = "Select the name of the sample inside the zip file (when multiple files are present inside the zip file)",
-        long_help = "When multiple files are present inside the zip file, a specific one can be selected for analysis.
-If multiple files are present and the option is not set, the first one will be selected"
-    )]
-    pub sample_name: Option<String>,
 }
 
 fn validate_file(s: &str) -> Result<PathBuf, String> {

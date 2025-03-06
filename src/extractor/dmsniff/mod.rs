@@ -33,6 +33,8 @@ pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
     let mut counter = 0;
     let mut tlds = vec![];
 
+    let mut found = false;
+
     for dga_func in &function_overview {
         if let Ok(tmp_primes) = extract_primes_from_dga_function(&pe, &dga_func.data) {
             primes = tmp_primes;
@@ -48,8 +50,13 @@ pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
                     break;
                 }
             }
+            found = true;
             break;
         }
+    }
+
+    if !found {
+        return Err(anyhow::anyhow!("Could not find dga function"));
     }
 
     let mut config = MalwareConfiguration::from((sample_data, "DMSniff"));
