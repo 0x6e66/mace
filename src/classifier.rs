@@ -5,6 +5,7 @@ use clap::ValueEnum;
 pub enum MalwareFamiliy {
     Metastealer,
     DMSniff,
+    Coper,
 }
 
 pub fn classify_sample(_sample_data: &[u8]) -> Result<Vec<MalwareFamiliy>> {

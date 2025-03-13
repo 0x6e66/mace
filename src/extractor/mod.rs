@@ -1,3 +1,4 @@
+mod coper;
 mod dmsniff;
 mod metastealer;
 
@@ -12,5 +13,6 @@ pub fn extract_for_family(
     match family {
         MalwareFamiliy::Metastealer => metastealer::extract(sample_data),
         MalwareFamiliy::DMSniff => dmsniff::extract(sample_data),
+        MalwareFamiliy::Coper => coper::extract(sample_data),
     }
 }
