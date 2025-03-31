@@ -14,6 +14,7 @@ pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
     let cursor = Cursor::new(sample_data);
     let mut archive = ZipArchive::new(cursor)?;
 
+    // get path of 64-bit elf
     let filename = archive
         .file_names()
         .find(|filename| filename.contains("lib/x86_64/"))
@@ -21,17 +22,31 @@ pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
 
     if let Some(filename) = filename {
         if let Ok(mut zipfile) = archive.by_name(&filename) {
+            // read data of elf to buffer
             let mut buff = Vec::with_capacity(zipfile.size() as usize);
             zipfile.read_to_end(&mut buff)?;
+
+            // get customer and tag from buffer
             let (customer, tag) = extract_from_elf(&buff)?;
 
             let mut config = MalwareConfiguration::from((sample_data, "Coper"));
+
+            // add customer to config
             if let Some(customer) = customer {
                 config
                     .data
                     .dga_parameters
                     .strings
                     .insert("customer".to_string(), customer);
+            }
+
+            // add tag to config
+            if let Some(tag) = tag {
+                config
+                    .data
+                    .dga_parameters
+                    .strings
+                    .insert("tag".to_string(), tag);
             }
 
             return Ok(config);
@@ -42,9 +57,6 @@ pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
 }
 
 fn extract_from_elf(elf_data: &[u8]) -> Result<(Option<String>, Option<String>)> {
-    let mut customer: Option<String> = None;
-    let mut tag: Option<String> = None;
-
     let mut compiler = Compiler::new();
     compiler.add_source(RULE_DGA)?;
 
@@ -52,7 +64,9 @@ fn extract_from_elf(elf_data: &[u8]) -> Result<(Option<String>, Option<String>)>
     let mut scanner = Scanner::new(&rules);
     let results = scanner.scan(elf_data)?;
 
-    for rule in results.matching_rules() {
+    let mut stack = [0u8; 100];
+
+    'rule: for rule in results.matching_rules() {
         for pattern in rule.patterns() {
             for mat in pattern.matches() {
                 let start = mat.range().start;
@@ -62,22 +76,62 @@ fn extract_from_elf(elf_data: &[u8]) -> Result<(Option<String>, Option<String>)>
                     start as u64,
                     DecoderOptions::NONE,
                 );
-                for instruction in decoder {
-                    if matches!(instruction.code(), Code::Movaps_xmm_xmmm128) && customer.is_none()
-                    {
-                        let offset = instruction.memory_displacement64() as usize;
-                        let mut customer_data = elf_data[offset..offset + 16].to_vec();
-                        if let Some(i) = customer_data.iter().rposition(|x| *x != 0) {
-                            let new_len = i + 1;
-                            customer_data.truncate(new_len);
-                        }
 
-                        customer = Some(String::from_utf8(customer_data)?);
+                let mut xmm_data = Vec::new();
+
+                // for each instruction get data that will be put on the stack
+                for instruction in decoder {
+                    match instruction.code() {
+                        Code::Movaps_xmm_xmmm128 => {
+                            let offset = instruction.memory_displacement64() as usize;
+                            let data = elf_data[offset..offset + 16].to_vec();
+
+                            xmm_data = data;
+                        }
+                        Code::Movaps_xmmm128_xmm => {
+                            let base = instruction.memory_displacement64() as usize;
+
+                            for (i, e) in xmm_data.iter().enumerate() {
+                                stack[base + i] = *e;
+                            }
+                        }
+                        Code::Mov_rm32_imm32 => {
+                            let base = instruction.memory_displacement64() as usize;
+
+                            for (i, e) in instruction.immediate32().to_le_bytes().iter().enumerate()
+                            {
+                                stack[base + i] = *e;
+                            }
+                        }
+                        Code::Mov_rm16_imm16 => {
+                            let base = instruction.memory_displacement64() as usize;
+
+                            for (i, e) in instruction.immediate16().to_le_bytes().iter().enumerate()
+                            {
+                                stack[base + i] = *e;
+                            }
+                        }
+                        Code::Mov_rm8_imm8 => {
+                            let base = instruction.memory_displacement64() as usize;
+
+                            stack[base] = instruction.immediate8();
+                        }
+                        _ => (),
                     }
                 }
             }
+            break 'rule;
         }
     }
+
+    let tmp: Vec<String> = stack
+        .split(|s| *s == 0)
+        .filter(|s| !s.is_empty())
+        .filter_map(|bytes| String::from_utf8(bytes.to_vec()).ok())
+        .collect();
+
+    let tag = tmp.get(0).cloned();
+    let customer = tmp.get(1).cloned();
 
     Ok((customer, tag))
 }
