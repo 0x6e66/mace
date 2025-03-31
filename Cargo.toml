@@ -2,6 +2,15 @@
 name = "mace"
 version = "0.1.0"
 edition = "2024"
+authors = ["Niklas Frondorf <niklas@frondorf.eu>"]
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+description = "Automated extration of malware configuration, focusing on C2 communication"
+repository = "https://github.com/0x6e66/mace"
+homepage = "https://github.com/0x6e66/mace"
+include = ["src", "Cargo.toml", "README.md"]
+keywords = ["malware", "malware-analysis", "malware-extraction"]
+documentation = "https://docs.rs/mace/"
 
 [dependencies]
 anyhow = "1.0.95"
