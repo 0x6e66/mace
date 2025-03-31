@@ -3,7 +3,7 @@ mod rules;
 use std::io::{Cursor, Read};
 
 use anyhow::{Result, anyhow};
-use iced_x86::{Code, Decoder, DecoderOptions, Mnemonic, Register};
+use iced_x86::{Code, Decoder, DecoderOptions, Instruction, Mnemonic, Register};
 use yara_x::{Compiler, Scanner};
 use zip::ZipArchive;
 
@@ -122,25 +122,9 @@ fn extract_from_elf(elf_data: &[u8]) -> Result<(Option<String>, Option<String>)>
                     stack[base + i] = *e;
                 }
             }
-            Code::Mov_rm32_imm32 => {
-                let base = instruction.memory_displacement64() as usize;
-
-                for (i, e) in instruction.immediate32().to_le_bytes().iter().enumerate() {
-                    stack[base + i] = *e;
-                }
-            }
-            Code::Mov_rm16_imm16 => {
-                let base = instruction.memory_displacement64() as usize;
-
-                for (i, e) in instruction.immediate16().to_le_bytes().iter().enumerate() {
-                    stack[base + i] = *e;
-                }
-            }
-            Code::Mov_rm8_imm8 => {
-                let base = instruction.memory_displacement64() as usize;
-
-                stack[base] = instruction.immediate8();
-            }
+            Code::Mov_rm32_imm32 => get_from_immediate(&mut stack, &instruction, 32),
+            Code::Mov_rm16_imm16 => get_from_immediate(&mut stack, &instruction, 16),
+            Code::Mov_rm8_imm8 => get_from_immediate(&mut stack, &instruction, 8),
             _ => (),
         }
     }
@@ -155,4 +139,19 @@ fn extract_from_elf(elf_data: &[u8]) -> Result<(Option<String>, Option<String>)>
     let customer = tmp.get(1).cloned();
 
     Ok((customer, tag))
+}
+
+fn get_from_immediate(stack: &mut [u8], instruction: &Instruction, size: u32) {
+    let base = instruction.memory_displacement64() as usize;
+
+    let immediate = match size {
+        8 => instruction.immediate8().to_le_bytes().to_vec(),
+        16 => instruction.immediate16().to_le_bytes().to_vec(),
+        32 => instruction.immediate32().to_le_bytes().to_vec(),
+        _ => unreachable!(),
+    };
+
+    for (i, e) in immediate.iter().enumerate() {
+        stack[base + i] = *e;
+    }
 }
