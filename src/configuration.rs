@@ -1,5 +1,9 @@
-use std::{collections::HashMap, net::IpAddr};
+use std::{
+    collections::{BTreeMap, HashMap},
+    net::IpAddr,
+};
 
+use serde::{Serialize as SerdeSerialize, Serializer};
 use serde_derive::{Deserialize, Serialize};
 use sha256::digest;
 
@@ -25,9 +29,13 @@ pub struct Data {
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct DGAParameters {
+    #[serde(serialize_with = "ordered_map")]
     pub number_sequences: HashMap<String, Vec<u32>>,
+    #[serde(serialize_with = "ordered_map")]
     pub string_sequences: HashMap<String, Vec<String>>,
+    #[serde(serialize_with = "ordered_map")]
     pub strings: HashMap<String, String>,
+    #[serde(serialize_with = "ordered_map")]
     pub magic_numbers: HashMap<String, u64>,
 }
 
@@ -47,4 +55,15 @@ impl From<(&[u8], &str)> for MalwareConfiguration {
             ..Default::default()
         }
     }
+}
+
+fn ordered_map<S, K: Ord + SerdeSerialize, V: SerdeSerialize>(
+    value: &HashMap<K, V>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let ordered: BTreeMap<_, _> = value.iter().collect();
+    ordered.serialize(serializer)
 }
