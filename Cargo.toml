@@ -1,6 +1,6 @@
 [package]
 name = "mace"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 authors = ["Niklas Frondorf <niklas@frondorf.eu>"]
 readme = "README.md"
@@ -9,8 +9,8 @@ description = "Automated extration of malware configuration, focusing on C2 comm
 repository = "https://github.com/0x6e66/mace"
 homepage = "https://github.com/0x6e66/mace"
 include = ["src", "Cargo.toml", "README.md"]
-keywords = ["malware", "malware-analysis", "malware-extraction"]
-documentation = "https://docs.rs/mace/"
+keywords = ["malware", "malware-analysis", "malware-extraction", "dga"]
+documentation = "https://docs.rs/crate/mace/latest"
 
 [dependencies]
 anyhow = "1.0.95"

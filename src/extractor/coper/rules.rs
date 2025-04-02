@@ -1,3 +1,4 @@
+/// Rule for getting the location of the `customer` and `tag` parameters of coper
 pub static RULE_DGA: &str = r#"
 rule dga {
     meta:

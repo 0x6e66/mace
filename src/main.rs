@@ -24,6 +24,7 @@ fn main() -> Result<()> {
 
     let global_args = cli.command.get_global_args();
 
+    // containers for positive and negative results
     let res = Arc::new(Mutex::new(Vec::new()));
     let err = Arc::new(Mutex::new(Vec::new()));
 
@@ -32,29 +33,28 @@ fn main() -> Result<()> {
         .par_iter()
         .progress()
         .for_each(|filename| match get_sample_data(&cli, filename) {
-            Err(e) => {
-                err.lock()
-                    .unwrap()
-                    .push(format!("Error opening file {filename:?}: '{e}'"));
-            }
+            Err(e) => add_string_to_arc(&err, format!("Error opening file {filename:?}: '{e}'")),
             Ok(data) => match extract_for_family(&data, &global_args.family) {
                 Ok(c) => match serde_json::to_string(&c) {
                     Ok(s) => res.lock().unwrap().push(s),
-                    Err(e) => err
-                        .lock()
-                        .unwrap()
-                        .push(format!("Failed to serialize malware configuration: '{e}'")),
+                    Err(e) => add_string_to_arc(
+                        &err,
+                        format!("Failed to serialize malware configuration: '{e}'"),
+                    ),
                 },
-                Err(e) => err.lock().unwrap().push(format!(
-                    "Failed to extract configuration from {filename:?}: '{e}'"
-                )),
+                Err(e) => add_string_to_arc(
+                    &err,
+                    format!("Failed to extract configuration from {filename:?}: '{e}'"),
+                ),
             },
         });
 
+    // print errors to stderr
     for e in err.lock().unwrap().iter() {
         eprintln!("{e}");
     }
 
+    // print results to stdout or specified file
     if let Some(output_path) = &global_args.output {
         let mut file = File::create(output_path)?;
         write!(&mut file, "{}", res.lock().unwrap().join("\n"))?;
@@ -63,4 +63,8 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn add_string_to_arc(arc: &Arc<Mutex<Vec<String>>>, string: String) {
+    arc.lock().unwrap().push(string);
 }

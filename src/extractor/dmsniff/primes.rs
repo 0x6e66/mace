@@ -6,8 +6,9 @@ use yara_x::{Compiler, Scanner};
 use crate::{extractor::dmsniff::rules::RULE_PRIMES, utils::get_bitness_from_pe};
 
 pub fn extract_primes_from_dga_function(pe: &VecPE, function_data: &[u8]) -> Result<Vec<u32>> {
-    let mut tmp: Vec<(u32, usize)> = Vec::new();
+    let mut prime_positions: Vec<(u32, usize)> = Vec::new();
 
+    // compile rule and get scan results
     let mut compiler = Compiler::new();
     compiler.add_source(RULE_PRIMES)?;
 
@@ -17,33 +18,42 @@ pub fn extract_primes_from_dga_function(pe: &VecPE, function_data: &[u8]) -> Res
 
     for rule in results.matching_rules() {
         for pattern in rule.patterns() {
+            // extract prime and store itself and its position
             match pattern.identifier() {
                 "$sequence_eax" => {
                     for mat in pattern.matches() {
                         let p = extract_prime_from_eax(pe, mat.data())?;
-                        let r = mat.range().start;
-                        tmp.push((p, r));
+                        let pos = mat.range().start;
+                        prime_positions.push((p, pos));
                     }
                 }
                 "$sequence_edi" => {
                     for mat in pattern.matches() {
-                        let r = mat.range().start;
-                        tmp.push((1, r));
+                        let pos = mat.range().start;
+                        prime_positions.push((1, pos));
                     }
                 }
                 "$sequence_shift" => {
                     for mat in pattern.matches() {
-                        let r = mat.range().start;
-                        tmp.push((2, r));
+                        let pos = mat.range().start;
+                        prime_positions.push((2, pos));
                     }
                 }
                 _ => unreachable!(),
             }
         }
     }
-    tmp.sort_by(|(_, s1), (_, s2)| s1.cmp(s2));
 
-    let mut res = tmp.into_iter().map(|(p, _)| p).collect::<Vec<u32>>();
+    // sort primes by position
+    prime_positions.sort_by(|(_, s1), (_, s2)| s1.cmp(s2));
+
+    // discard positions
+    let mut res = prime_positions
+        .into_iter()
+        .map(|(p, _)| p)
+        .collect::<Vec<u32>>();
+
+    // get the first 5 primes
     if res.len() <= 4 + 5 {
         return Err(anyhow::anyhow!("Too few primes found"));
     }
@@ -52,6 +62,7 @@ pub fn extract_primes_from_dga_function(pe: &VecPE, function_data: &[u8]) -> Res
     Ok(res)
 }
 
+/// deal with special case of prime being moved into eax register
 fn extract_prime_from_eax(pe: &VecPE, snippet: &[u8]) -> Result<u32> {
     let bitness = get_bitness_from_pe(pe);
     let mut decoder = Decoder::new(bitness, snippet, DecoderOptions::NONE);

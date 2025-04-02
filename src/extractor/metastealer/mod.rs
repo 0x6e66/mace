@@ -14,44 +14,23 @@ use crate::{
 pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
     let pe = VecPE::from_data(PEType::Disk, sample_data);
 
+    // extract seeds and other dga parameters
     let seed = get_seed(&pe).ok_or(anyhow!("seed not found"))?;
     let params = get_dga_params(&pe).ok_or(anyhow!("dga parameters not found"))?;
 
+    // get config from sample data
     let mut res = MalwareConfiguration::from((sample_data, "Metastealer"));
+    let mn = &mut res.data.dga_parameters.magic_numbers;
 
-    res.data
-        .dga_parameters
-        .magic_numbers
-        .insert("seed".to_string(), seed);
-
-    res.data
-        .dga_parameters
-        .magic_numbers
-        .insert("num_of_domains".to_string(), params.num.into());
-    res.data
-        .dga_parameters
-        .magic_numbers
-        .insert("mul_value".to_string(), params.mul.into());
-    res.data
-        .dga_parameters
-        .magic_numbers
-        .insert("len_of_domain".to_string(), params.len.into());
-    res.data
-        .dga_parameters
-        .magic_numbers
-        .insert("and_value".to_string(), params.and.into());
-    res.data
-        .dga_parameters
-        .magic_numbers
-        .insert("div_value".to_string(), params.div.into());
-    res.data
-        .dga_parameters
-        .magic_numbers
-        .insert("add_value".to_string(), params.add.into());
-    res.data
-        .dga_parameters
-        .magic_numbers
-        .insert("xor_value".to_string(), params.xor.into());
+    // add seed and parameters to config
+    mn.insert("seed".to_string(), seed);
+    mn.insert("num_of_domains".to_string(), params.num.into());
+    mn.insert("mul_value".to_string(), params.mul.into());
+    mn.insert("len_of_domain".to_string(), params.len.into());
+    mn.insert("and_value".to_string(), params.and.into());
+    mn.insert("div_value".to_string(), params.div.into());
+    mn.insert("add_value".to_string(), params.add.into());
+    mn.insert("xor_value".to_string(), params.xor.into());
 
     Ok(res)
 }
@@ -70,9 +49,9 @@ struct DgaParams {
 fn get_dga_params(pe: &VecPE) -> Option<DgaParams> {
     let bitness = get_bitness_from_pe(pe);
 
+    // compile yara rule and get results from scanner
     let mut compiler = Compiler::new();
     compiler.add_source(RULE_PARAMS).ok()?;
-
     let rules = compiler.build();
     let mut scanner = Scanner::new(&rules);
     let results = scanner.scan(pe.get_buffer().as_slice()).ok()?;
@@ -134,25 +113,28 @@ fn get_dga_params(pe: &VecPE) -> Option<DgaParams> {
 fn get_seed(pe: &VecPE) -> Option<u64> {
     let bitness = get_bitness_from_pe(pe);
 
+    // compile yara rule and get results from scanner
     let mut compiler = Compiler::new();
     compiler.add_source(RULE_SEED).ok()?;
-
     let rules = compiler.build();
     let mut scanner = Scanner::new(&rules);
     let results = scanner.scan(pe.get_buffer().as_slice()).ok()?;
 
-    for r in results.matching_rules() {
-        for pat in r.patterns() {
-            for mat in pat.matches() {
-                let decoder = Decoder::new(bitness, mat.data(), DecoderOptions::NONE);
-                if let Some(instruction) = decoder
-                    .into_iter()
-                    .filter(|i| matches!(i.mnemonic(), Mnemonic::Push))
-                    .find(|i| ![0x6ef, 0].contains(&i.immediate32()))
-                {
-                    return Some(instruction.immediate64());
-                }
-            }
+    // if rule matches get seed
+    if let Some(mat) = results
+        .matching_rules()
+        .next()
+        .and_then(|r| r.patterns().next())
+        .and_then(|p| p.matches().next())
+    {
+        // get seed from push instruction
+        let decoder = Decoder::new(bitness, mat.data(), DecoderOptions::NONE);
+        if let Some(instruction) = decoder
+            .into_iter()
+            .filter(|i| matches!(i.mnemonic(), Mnemonic::Push))
+            .find(|i| ![0x6ef, 0].contains(&i.immediate32()))
+        {
+            return Some(instruction.immediate64());
         }
     }
 

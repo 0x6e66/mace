@@ -20,7 +20,8 @@ pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
     let pe = VecPE::from_data(PEType::Disk, sample_data);
     let mut function_overview = generate_function_overview(&pe)?;
 
-    // average size of the dga function is 447 bytes
+    // sort functions by size (average size of the dga function is 447 bytes) for better
+    // performance
     function_overview.sort_by(|f1, f2| {
         f1.data
             .len()
@@ -36,15 +37,20 @@ pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
     let mut found = false;
 
     for dga_func in &function_overview {
+        // try extract primes from function
         if let Ok(tmp_primes) = extract_primes_from_dga_function(&pe, &dga_func.data) {
             primes = tmp_primes;
+
+            // extract prefix and tlds from dga function
             prefix = extract_prefix_from_dga_function(&pe, &dga_func.data)?;
             tlds = extract_tlds_from_dga_func(&pe, dga_func)?;
 
+            // find function that calls the dga function
             for f in function_overview
                 .iter()
                 .filter(|f| f.function_calls.contains(&dga_func.address))
             {
+                // try extract the number of domains generated from function
                 if let Ok(tmp_counter) = extract_counter_from_call_dga_func(&pe, &f.data) {
                     counter = tmp_counter;
                     break;
@@ -59,6 +65,7 @@ pub fn extract(sample_data: &[u8]) -> Result<MalwareConfiguration> {
         return Err(anyhow::anyhow!("Could not find dga function"));
     }
 
+    // create malware config from sample data
     let mut config = MalwareConfiguration::from((sample_data, "DMSniff"));
 
     config
