@@ -1,4 +1,7 @@
 # MACE (MAlware Configuration Extrator)
+[![Crate](https://img.shields.io/crates/v/mace.svg)](https://crates.io/crates/mace)
+[![Documentation](https://img.shields.io/docsrs/mace?label=docs.rs)](https://docs.rs/mace)
+![License](https://img.shields.io/crates/l/mace)
 
 ## Description
 This project aims to provide functionality for the automated extraction of malware configuration from samples. The extracted information is focused on the C2 communication of the sample.
