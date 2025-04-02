@@ -21,6 +21,12 @@ This includes hardcoded domains and IPs and parameters of used Domain Generation
   git clone https://github.com/0x6e66/mace.git
   cargo install --path mace
   ```
+- Or run without installation
+  ```bash
+  git clone https://github.com/0x6e66/mace.git
+  cd mace
+  cargo run -- --help
+  ```
 
 
 ## Supported malware families
@@ -32,7 +38,7 @@ This includes hardcoded domains and IPs and parameters of used Domain Generation
 ## Example usage
 Analyzing the DMSniff sample [f4be1b8d67e33c11789d151d288130254d346ecc0f4738a12ce3a34d86ec646d](https://www.virustotal.com/gui/file/f4be1b8d67e33c11789d151d288130254d346ecc0f4738a12ce3a34d86ec646d)
 ```bash
-$ cargo run -- direct -f dm-sniff sample.exe | jq
+$ mace direct -f dm-sniff sample.exe | jq
 {
   "header": {
     "sha256_of_sample": "f4be1b8d67e33c11789d151d288130254d346ecc0f4738a12ce3a34d86ec646d",
