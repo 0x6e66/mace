@@ -7,6 +7,22 @@
 This project aims to provide functionality for the automated extraction of malware configuration from samples. The extracted information is focused on the C2 communication of the sample.
 This includes hardcoded domains and IPs and parameters of used Domain Generation Algorithms.
 
+## Installation
+- From [crates.io](https://crates.io/crates/mace) with cargo
+  ```bash
+  cargo install mace
+  ```
+- From git
+  ```bash
+  cargo install --git https://github.com/0x6e66/mace
+  ```
+  or
+  ```bash
+  git clone https://github.com/0x6e66/mace.git
+  cargo install --path mace
+  ```
+
+
 ## Supported malware families
 > Note: Automatic classification of malware families is not yet implemented
 - [Coper](https://malpedia.caad.fkie.fraunhofer.de/details/apk.coper)
