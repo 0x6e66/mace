@@ -20,42 +20,54 @@ pub fn extract_tlds_from_dga_func(pe: &VecPE, dga_func: &Function) -> Result<Vec
     let rules = compiler.build();
     let mut scanner = Scanner::new(&rules);
     let results = scanner.scan(&dga_func.data)?;
-    let mat = results
-        .matching_rules()
-        .next()
-        .and_then(|r| r.patterns().next())
-        .and_then(|p| p.matches().next())
-        .ok_or(anyhow!("could not find 'make_DGA' in binary"))?;
+
+    // let mat = results
+    //     .matching_rules()
+    //     .next()
+    //     .and_then(|r| r.patterns().next())
+    //     .and_then(|p| p.matches().next())
+    //     .ok_or(anyhow!("could not find 'make_DGA' in binary"))?;
 
     let mut decrypt_string_function = None;
     let mut encrypted_tlds: Vec<Vec<u8>> = Vec::new();
 
-    let ip = dga_func.address + mat.range().start as u32;
-    let decoder = Decoder::with_ip(bitness, mat.data(), ip.into(), DecoderOptions::NONE);
-
-    for instrunction in decoder {
-        match instrunction.mnemonic() {
-            // get encrypted tld
-            Mnemonic::Push => {
-                let address = instrunction.immediate32() - image_base;
-                let address = virtual_to_raw_address(data_section_header, address) as usize;
-                let end = address + (&pe.get_buffer()[address] + 4) as usize;
-                encrypted_tlds.push(pe.get_buffer()[address..end].to_vec());
-            }
-            // get address of decrypt string function
-            Mnemonic::Call => {
-                if decrypt_string_function.is_none() {
-                    let addr = instrunction.memory_displacement32();
-                    if let Some(func) = function_overview.iter().find(|f| f.address == addr) {
-                        decrypt_string_function = Some(func);
+    for rule in results.matching_rules() {
+        for pat in rule.patterns() {
+            for mat in pat.matches() {
+                let ip = dga_func.address + mat.range().start as u32;
+                let decoder =
+                    Decoder::with_ip(bitness, mat.data(), ip.into(), DecoderOptions::NONE);
+                for instrunction in decoder {
+                    match instrunction.mnemonic() {
+                        // get encrypted tld
+                        Mnemonic::Push => {
+                            let address = instrunction.immediate32() - image_base;
+                            let address =
+                                virtual_to_raw_address(data_section_header, address) as usize;
+                            let end = address + (&pe.get_buffer()[address] + 4) as usize;
+                            encrypted_tlds.push(pe.get_buffer()[address..end].to_vec());
+                        }
+                        // get address of decrypt string function
+                        Mnemonic::Call => {
+                            if decrypt_string_function.is_none() {
+                                let addr = instrunction.memory_displacement32();
+                                if let Some(func) =
+                                    function_overview.iter().find(|f| f.address == addr)
+                                {
+                                    decrypt_string_function = Some(func);
+                                }
+                            }
+                        }
+                        _ => (),
                     }
                 }
             }
-            _ => (),
         }
     }
 
     let mut tlds = vec![];
+
+    // dbg!(&encrypted_tlds);
 
     // decrypt tlds
     if let Some(function) = decrypt_string_function {
