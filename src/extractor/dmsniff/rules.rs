@@ -42,7 +42,9 @@ rule prefix {
         author = "Frondorf, Niklas"
 
     strings:
-        $prefix = /(\xc6\x05[\x00-\xff]{4}[^\x00]|\xc6\x05[\x00-\xff]{4}[^\x00]\xc6\x05[\x00-\xff]{4}[^\x00])/
+        $prefix = {
+           c6 05 ?? ?? ?? ?? ??     // mov      byte ptr [DAT], char
+        }
 
     condition:
         all of them

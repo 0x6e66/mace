@@ -26,9 +26,13 @@ pub fn extract_prefix_from_dga_function(pe: &VecPE, function_data: &[u8]) -> Res
                 // get prefix characters that are moved onto the stack
                 for instruction in decoder {
                     if !matches!(instruction.code(), Code::Mov_rm8_imm8) {
-                        break;
+                        return Ok(res);
                     }
-                    res.push(instruction.immediate8().into());
+
+                    let immediate = instruction.immediate8();
+                    if immediate != 0 {
+                        res.push(immediate.into());
+                    }
                 }
             }
         }
