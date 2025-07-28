@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use exe::{PE, VecPE};
 use iced_x86::{Decoder, DecoderOptions, Mnemonic};
 use yara_x::{Compiler, Scanner};
